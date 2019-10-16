@@ -15,13 +15,18 @@ def tuple_list_to_geojson(list_of_tuples):
         lat = row[2]
         lon = row[3]
         landkreis_id = row[13]
+        wheelchair = row[4]
+        if wheelchair != 'yes' and wheelchair != 'no':
+            wheelchair = 'unknown'
         list_of_features.append({
             'type': "Feature",
             'geometry': {"type": "Point", "coordinates": [lon, lat]},
             "properties": {
                 'id': id,
                 'operator': operator,
-                'landkreis_id': landkreis_id
+                'landkreis_id': landkreis_id,
+                'wheelchair': wheelchair,
+                'c':1
             }
         })
     return {"type": "FeatureCollection", 'features': list_of_features}
@@ -100,7 +105,13 @@ def regions():
 @app.route('/data_request', methods=['POST'])
 def data_request():
     post_request = request.json
-    return query_database(post_request['filter'])
+    response = query_database(post_request['filter'])
+    regions = post_request['regions']
+    plot_data = []
+    for entry in response['features']:
+        if entry['properties']['landkreis_id'] in regions:
+            plot_data.append(entry['properties'])
+    return {'data':plot_data}
 
 
 @app.route('/normalized_atm_count_per_region', methods=['POST'])

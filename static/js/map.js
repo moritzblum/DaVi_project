@@ -35,8 +35,8 @@ var map = new mapboxgl.Map({
     style: 'mapbox://styles/mapbox/streets-v11',
     center: [10.451526, 51.165691],
     zoom: 5,
-    minZoom: 5,
-    maxZoom: 12,
+    minZoom: 2,
+    maxZoom: 15,
     maxBounds: [
         [4, 46],
         [16, 58]

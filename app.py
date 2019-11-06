@@ -109,7 +109,13 @@ def data_request():
     regions = post_request['regions']
     plot_data = []
     for entry in response['features']:
-        if entry['properties']['landkreis_id'] in regions:
+        if entry['properties']['operator']:
+            if entry['properties']['operator'].lower() not in post_request['filter']['operator']['include'] + post_request['filter']['operator']['exclude']:
+                entry['properties']['operator'] = 'others'
+        else:
+            entry['properties']['operator'] = 'others'
+        if entry['properties']['landkreis_id'] in regions or len(regions) == 0:
+            entry['properties']['landkreis'] = entry['properties']['landkreis_id']
             plot_data.append(entry['properties'])
     return {'data':plot_data}
 
@@ -130,7 +136,23 @@ def normalized_atm_count_per_region():
         atms_in_region.pop("", None)
         for region in atms_in_region.keys():
             atms_in_region[region] = atms_in_region[region]/population_json[region]['population']
+
+    values = [x[1] for x in atms_in_region.items()]
+    try:
+        max_value = max(values)
+    except ValueError:
+        return {}
+    # normalize to range 0 to 1
+    for key in atms_in_region.keys():
+        atms_in_region[key] = atms_in_region[key]/max_value
+
     return atms_in_region
+
+
+def idsToLandkreis(cartodb_id):
+    with open('data/id_to_landkreis.json', encoding='utf-8') as j:
+        d = json.load(j)
+        return str(cartodb_id) + " " + d[str(cartodb_id)]
 
 
 

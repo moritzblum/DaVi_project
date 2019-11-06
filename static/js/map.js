@@ -3,11 +3,9 @@ document.getElementById('check_wheelchair_yes').checked = true;
 document.getElementById('check_wheelchair_no').checked = true;
 document.getElementById('check_operator_sparkasse').checked = true;
 document.getElementById('check_operator_volksbank').checked = true;
-document.getElementById('range_radius').value = 10;
 
-mapboxgl.accessToken = 'pk.eyJ1IjoibWJsdW0xMDI0IiwiYSI6ImNrMHhyMjE5NDA2bmYzZG11Yzdkd2VueGsifQ.wPFbDXFe8SJShGLoX0jXdw';
+var selectedCartodbIds = [];
 
-var colormap = [];
 colors_sequential = ['#fff5f0',
     '#fee0d2',
     '#fcbba1',
@@ -22,63 +20,24 @@ colors_diverging = ['#d8b365',
     '#f5f5f5',
     '#5ab4ac'];
 
-var heatmap_data = {};
-var updateColors = false;
-var graph_data = {};
+selectionColor = '#2b83ba';
+
+var heatmapData = {};
+var GraphData = {};
 var geoJson = {};
-var selected_id = [];
+var mapLayer;
+var path;
+var projection;
+var heatmapCreated = false;
 
 
 
-var map = new mapboxgl.Map({
-    container: 'map',
-    style: 'mapbox://styles/mapbox/streets-v11',
-    center: [10.451526, 51.165691],
-    zoom: 5,
-    minZoom: 2,
-    maxZoom: 15,
-    maxBounds: [
-        [4, 46],
-        [16, 58]
-    ]
-});
-
-function updateHeatmap() {
-    $.ajax({
-        type: 'POST',
-        url: '/normalized_atm_count_per_region',
-        contentType: "application/json",
-        data: JSON.stringify(get_filter_json()),
-        success: function (data) {
-            heatmap_data = data;
-            console.log('normalized_atm_count_per_region:');
-            var density_values = [];
-            Object.keys(heatmap_data).forEach(
-                function (element) {
-                    density_values.push(heatmap_data[element]);
-                }
-            );
-            var max_of_array = Math.max.apply(Math, density_values);
-            Object.keys(heatmap_data).forEach(
-                function (element) {
-                    heatmap_data[element] = heatmap_data[element] / max_of_array;
-                }
-            );
-            updateColormap(heatmap_data);
-            if (updateColors) {
-                map.setPaintProperty('landkreise-fills', 'fill-color', colormap);
-            } else {
-                initDiscreteHeatmap(map);
-                updateColors = true;
-
-            }
-        }
-    });
-}
+var width = document.getElementById('map').clientWidth;
+var height = width * 1.5;
+var te;
 
 
-function initDiscreteHeatmap(map) {
-
+function initChoroplethMap() {
     $.ajax({
         type: 'GET',
         url: '/regions',
@@ -88,144 +47,159 @@ function initDiscreteHeatmap(map) {
         success: function (data) {
             console.log("Landkreise Geojson received from server.");
             geoJson = data;
-            map.addLayer({
-                'id': 'landkreise-fills',
-                'type': 'fill',
-                'source': {
-                    'type': 'geojson',
-                    'data': geoJson
-                },
-                'layout': {},
-                'paint': {
-                    'fill-color': colormap,
-                    'fill-opacity': 0.7
-                }
-            });
 
-            map.addLayer({
-                'id': 'landkreise-borders',
-                'type': 'line',
-                'source': {
-                    'type': 'geojson',
-                    'data': geoJson
-                },
-                'layout': {},
-                'paint': {
-                    "line-color": "#627BC1",
-                    "line-width": 0.5
-                }
-            });
-            console.log("Layer added.");
+            svg = d3.select("#map").select("svg")
+                .attr("width", width)
+                .attr("height", height);
 
-            map.addLayer({
-                'id': 'selection',
-                'type': 'line',
-                'source': {
-                    'type': 'geojson',
-                    'data': {"type": "FeatureCollection", "features": []}
-                },
-                'layout': {},
-                'paint': {
-                    "line-color": "#627BC1",
-                    "line-width": 3
-                }
-            });
 
+
+            mapLayer = svg.append('g')
+                .classed('map-layer', true);
+
+            // add background
+            te =  mapLayer.append('rect')
+                .attr('width', width)
+                .attr('height', height)
+                .attr('fill', 'white');
+
+            projection = d3.geoMercator().translate([width/2, height/2]).scale(width*4).center([12, 49]);
+            path = d3.geoPath().projection(projection);
+
+            // add regions
+            mapLayer.selectAll("path")
+                .data(geoJson.features)
+                .enter()
+                .append("path")
+                .attr("d", path)
+                .style("stroke", "black")
+                .style("stroke-width", 0.5)
+                .style('fill', function (d) {
+                    return getColor(d);
+                }).on("mouseover", function (d) {
+            }).on("mouseout", function (d) {
+            }).on("click", function (d) {
+                cartodb_id = d.properties.cartodb_id;
+                if (selectedCartodbIds.includes(cartodb_id)) {
+                    var index = selectedCartodbIds.indexOf(cartodb_id);
+                    if (index > -1) {
+                        selectedCartodbIds.splice(index, 1);
+                    }
+                    d3.select(this).style("fill", getColor(d));
+                } else {
+                    selectedCartodbIds.push(cartodb_id);
+                    d3.select(this).style("fill", selectionColor);
+                }
+                updatePlot();
+                document.getElementById("selected").innerHTML = idsToLandkreis(selectedCartodbIds);
+            });
+            heatmapCreated = true;
         }
     });
 }
 
 
-function updateColormap() {
-    if (Object.keys(heatmap_data).length != 0) {
-        colormap = ['match', ['get', 'cartodb_id']];
-        Object.keys(heatmap_data).forEach(
-            function (cartodb_id) {
-                var color_index = Math.round(heatmap_data[cartodb_id] * colors_sequential.length) - 1;
-                var color = colors_sequential[color_index];
-                if (color != undefined) {
-                    colormap.push(parseInt(cartodb_id), color);
-                }
-            }
-        );
-        colormap.push(colors_sequential[0]);
+// get the color depending on the stored heatmap_data data
+function getColor(d) {
+    cartodb_id = d.properties.cartodb_id;
+    var color_index = Math.round(heatmapData[cartodb_id] * colors_sequential.length) - 1;
+    var color = colors_sequential[color_index];
+    if (color != undefined) {
+        return color;
     } else {
-        colormap = colors_sequential[0];
+        // for this filter are no ATMs in this region
+        return colors_sequential[0];
     }
 }
 
 
-map.on('load', function () {
-    updateHeatmap();
-});
+function updateChoroplethMap() {
+    mapLayer.selectAll("path").style('fill', function (d) {
+        // if the region is currently selected, highlight it
+        if (selectedCartodbIds.includes(d.properties.cartodb_id)) {
+            return selectionColor;
+        } else {
+            return getColor(d);
+        }
+    })
+}
 
 
-// controller to apply filter
-document.getElementById("apply_filter").onclick = function () {
-    updateHeatmap();
-    updatePlot();
-};
+function updateHeatmapData() {
+    $.ajax({
+        type: 'POST',
+        url: '/normalized_atm_count_per_region',
+        contentType: "application/json",
+        data: JSON.stringify(get_filter_json()),
+        success: function (data) {
+            heatmapData = data;
+            if (!heatmapCreated) {
+                initChoroplethMap();
+                updatePlot();
+            } else {
+                updateChoroplethMap();
+                updatePlot();
+            }
+        }
+    });
+}
 
-function updatePlot(){
+
+function updatePlot() {
     // generate plot
     filter = get_filter_json();
-    filter['regions'] = selected_id;
+    filter['regions'] = selectedCartodbIds;
     $.ajax({
         type: 'POST',
         url: '/data_request',
         contentType: "application/json",
         data: JSON.stringify(filter),
         success: function (data) {
-            graph_data = data.data;
-            console.log(graph_data);
-            plot(graph_data);
+            GraphData = data.data;
+            plot(GraphData, selectedCartodbIds);
         }
     });
 }
 
 
-// When a click event occurs on a feature in the states layer, open a popup at the
-// location of the click, with description HTML from its properties.
-map.on('click', 'landkreise-fills', function (e) {
-    // mark selected regions
-    var cartodb_id = parseInt(e.features[0].properties.cartodb_id);
-    if (selected_id.includes(cartodb_id)){
-        var index = selected_id.indexOf(cartodb_id);
-        if (index !== -1) selected_id.splice(index, 1);
-    }
-    else{
-        selected_id.push(cartodb_id);
-    }
-    map.getSource('selection').setData(getGeoJson(selected_id));
-    document.getElementById('selected').innerHTML = idsToLandkreis(selected_id);
-
-    // query data and update plot
-    updatePlot();
-});
-
-
-function getGeoJson(cartodb_ids) {
-    features = [];
+function idsToLandkreis(cartodb_ids) {
+    var landkreise = [];
     cartodb_ids.forEach(function (cartodb_id, index) {
-        geoJson.features.forEach(function (feature, index) {
-            if (feature.properties.cartodb_id == cartodb_id) {
-                features.push(feature)
+        geoJson.features.forEach(function (feature, i) {
+            if (feature.properties.cartodb_id == parseInt(cartodb_id)) {
+                landkreise.push(cartodb_id + " " + feature.properties.gen);
             }
         })
     });
-    return {"type": "FeatureCollection", "features": features}
+    return landkreise;
 }
 
 
-function idsToLandkreis(cartodb_ids){
-    var landkreise = [];
-    cartodb_ids.forEach(function (cartodb_id, index) {
-       geoJson.features.forEach(function (feature, i){
-           if (feature.properties.cartodb_id == parseInt(cartodb_id)) {
-                landkreise.push(feature.properties.gen);
-            }
-       })
-    });
-    return landkreise;
+window.onload = function () {
+    updateHeatmapData();
+};
+
+// controller to apply filter
+document.getElementById("apply_filter").onclick = function () {
+    updateHeatmapData();
+
+};
+
+d3.select(window).on('resize', resize);
+
+function resize() {
+
+    width = document.getElementById('map').clientWidth;
+    height = width*1.5;
+
+   projection
+    	.translate([width/2, height/2]).scale(width*4).center([12, 49]);
+
+
+   d3.select('svg').attr("width",width).attr("height",height);
+   d3.select('te').attr("width",width).attr("height",height);
+
+   d3.selectAll("path").attr('d', path);
+
 
 }

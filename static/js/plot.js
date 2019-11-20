@@ -7,7 +7,7 @@ Stacked bar chart for each region individually.
 
     if (data.length != 0) {
         var vlSpec = {
-            "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+            "$schema": "https://vega.github.io/schema/vega-lite/v2.0.json",
             "datasets": {"somedata": data},
             "data": {"name": "somedata"},
             "title": "all selected regions",
@@ -29,7 +29,7 @@ Stacked bar chart for each region individually.
         vegaEmbed('#vis', vlSpec);
         if (1 < cartodb_ids.length && cartodb_ids.length < 6) {
             var trellis = {
-                "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+                "$schema": "https://vega.github.io/schema/vega-lite/v2.0.json",
                 "repeat": {
                     "cartodb_id": cartodb_ids,
                 },

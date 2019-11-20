@@ -10,6 +10,13 @@ function get_filter_json() {
                 'yes': true,
                 'no': true,
                 'others': true
+            },
+            'population': {
+                '0-17': false,
+                '18-24': false,
+                '25-44': false,
+                '45-64': false,
+                '65-100': false
             }
         }
     };
@@ -33,6 +40,13 @@ function get_filter_json() {
     query_json.filter.wheelchair.yes = document.getElementById('check_wheelchair_yes').checked;
     query_json.filter.wheelchair.no = document.getElementById('check_wheelchair_no').checked;
     query_json.filter.wheelchair.others = document.getElementById('check_wheelchair_others').checked;
+
+    query_json.filter.population['0-17'] = document.getElementById('check_age_1').checked;
+    query_json.filter.population['18-24'] = document.getElementById('check_age_2').checked;
+    query_json.filter.population['25-44'] = document.getElementById('check_age_3').checked;
+    query_json.filter.population['45-64'] = document.getElementById('check_age_4').checked;
+    query_json.filter.population['65-100'] = document.getElementById('check_age_5').checked;
+
 
     return query_json;
 }

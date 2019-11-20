@@ -3,6 +3,10 @@ document.getElementById('check_wheelchair_yes').checked = true;
 document.getElementById('check_wheelchair_no').checked = true;
 document.getElementById('check_operator_sparkasse').checked = true;
 document.getElementById('check_operator_volksbank').checked = true;
+document.getElementById('check_age_4').checked = true;
+document.getElementById('check_age_5').checked = true;
+
+
 
 var selectedCartodbIds = [];
 
@@ -17,7 +21,7 @@ colors_sequential = ['#fff5f0',
     '#67000d'];
 
 colors_diverging = ['#d8b365',
-    '#f5f5f5',
+    '#c51b8a',
     '#5ab4ac'];
 
 selectionColor = '#2b83ba';
@@ -102,6 +106,18 @@ function initChoroplethMap() {
 // get the color depending on the stored heatmap_data data
 function getColor(d) {
     cartodb_id = d.properties.cartodb_id;
+    colorIntensity = heatmapData[cartodb_id];
+    color = d3.interpolateYlGn(colorIntensity);
+    console.log(colorIntensity, cartodb_id);
+
+    if (colorIntensity != undefined) {
+        return color;
+    } else {
+        // for this filter are no ATMs in this region
+        console.log(heatmapData[cartodb_id]);
+        return d3.interpolateYlGn(0);
+    }
+    /*
     var color_index = Math.round(heatmapData[cartodb_id] * colors_sequential.length) - 1;
     var color = colors_sequential[color_index];
     if (color != undefined) {
@@ -110,6 +126,7 @@ function getColor(d) {
         // for this filter are no ATMs in this region
         return colors_sequential[0];
     }
+    */
 }
 
 
@@ -188,17 +205,11 @@ document.getElementById("apply_filter").onclick = function () {
 d3.select(window).on('resize', resize);
 
 function resize() {
-
     width = document.getElementById('map').clientWidth;
     height = width*1.5;
-
-   projection
-    	.translate([width/2, height/2]).scale(width*4).center([12, 49]);
-
-
+   projection.translate([width/2, height/2]).scale(width*4).center([12, 49]);
    d3.select('svg').attr("width",width).attr("height",height);
    d3.select('te').attr("width",width).attr("height",height);
-
    d3.selectAll("path").attr('d', path);
 
 

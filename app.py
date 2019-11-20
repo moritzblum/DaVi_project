@@ -125,7 +125,7 @@ def normalized_atm_count_per_region():
     atms_in_region = {}
     post_request = request.json
     geojson = query_database(post_request['filter'])
-    with open('data/region_population.json') as population_file:
+    with open('data/region_population_age.json') as population_file:
         population_json = json.load(population_file)
         for atm in geojson['features']:
             landkreis_id = str(atm['properties']['landkreis_id'])
@@ -135,22 +135,47 @@ def normalized_atm_count_per_region():
                 atms_in_region[landkreis_id] = 1
         atms_in_region.pop("", None)
         for region in atms_in_region.keys():
-            atms_in_region[region] = atms_in_region[region]/population_json[region]['population']
+            people_to_consider = 1
+            for people_age in population_json:
+                if post_request['filter']['population'][people_age]:
+                    try:
+                        people_to_consider += population_json[people_age][str(region)]
+                    except:
+                        print(str(region))
 
-    values = [x[1] for x in atms_in_region.items()]
+            atms_in_region[region] = atms_in_region[region]/people_to_consider
+
+    values = [atms_in_region[key] for key in atms_in_region.keys()]
     try:
-        max_value = max(values)
+        sum_values = sum(values)
     except ValueError:
         return {}
     # normalize to range 0 to 1
+    max_values = 0
     for key in atms_in_region.keys():
-        atms_in_region[key] = atms_in_region[key]/max_value
+        atms_in_region[key] = atms_in_region[key]/sum_values
+        if atms_in_region[key] > max_values:
+            max_values = atms_in_region[key]
+    for key in atms_in_region.keys():
+        atms_in_region[key] = atms_in_region[key] / 0.015
+
+    print("max:")
+    print(max_values)
+
+
+    print(atms_in_region)
+
+    s = 0
+    for region in atms_in_region.keys():
+        s += atms_in_region[region]
+    print("Sum:")
+    print(s)
 
     return atms_in_region
 
 
 def idsToLandkreis(cartodb_id):
-    with open('data/id_to_landkreis.json', encoding='utf-8') as j:
+    with open('data/cartodb_id_to_landkreis.json', encoding='utf-8') as j:
         d = json.load(j)
         return str(cartodb_id) + " " + d[str(cartodb_id)]
 

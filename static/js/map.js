@@ -1,11 +1,13 @@
 // for debugging
 document.getElementById('check_wheelchair_yes').checked = true;
 document.getElementById('check_wheelchair_no').checked = true;
+document.getElementById('check_wheelchair_others').checked = true;
+
 document.getElementById('check_operator_sparkasse').checked = true;
 document.getElementById('check_operator_volksbank').checked = true;
 document.getElementById('check_age_4').checked = true;
 document.getElementById('check_age_5').checked = true;
-
+document.getElementById('invert').checked = true;
 
 
 var selectedCartodbIds = [];
@@ -32,17 +34,41 @@ var geoJson = {};
 var mapLayer;
 var path;
 var projection;
-var heatmapCreated = false;
 
 
-
-var width = document.getElementById('map').clientWidth;
-var height = width * 1.5;
-var te;
+var mapBackground;
+var inverseMapBackground;
 
 
 function initChoroplethMap() {
+
+
+    if (document.getElementById('invert').checked) {
+        width = document.getElementById('mapWindow').clientWidth;
+        mapWidth = width / 2 - 1;
+        mapHeight = width * 3 / 4;
+        document.getElementById("mapWindow").innerHTML = "<div id=\"map\"><svg></svg></div><div id=\"inverseMap\"><svg></svg></div>";
+    } else {
+        height = document.getElementById('mapWindow').clientWidth;
+        mapHeight = height;
+        mapWidth = height * 3 / 4;
+        document.getElementById("mapWindow").innerHTML = "<div id=\"map\"><svg></svg></div>";
+    }
+
+
+    svg = d3.select("#map").select("svg")
+        .attr("width", mapWidth)
+        .attr("height", mapHeight);
+
+
+    mapBackground = svg.append('rect')
+        .attr('width', mapWidth)
+        .attr('height', mapHeight)
+        .attr('fill', 'green');
+
+
     $.ajax({
+
         type: 'GET',
         url: '/regions',
         contentType: "application/json",
@@ -53,21 +79,15 @@ function initChoroplethMap() {
             geoJson = data;
 
             svg = d3.select("#map").select("svg")
-                .attr("width", width)
-                .attr("height", height);
-
+                .attr("width", mapWidth)
+                .attr("height", mapHeight);
 
 
             mapLayer = svg.append('g')
                 .classed('map-layer', true);
 
-            // add background
-            te =  mapLayer.append('rect')
-                .attr('width', width)
-                .attr('height', height)
-                .attr('fill', 'white');
+            projection = d3.geoMercator().translate([mapWidth / 2, mapHeight / 2]).scale(mapWidth * 4).center([12, 50]);
 
-            projection = d3.geoMercator().translate([width/2, height/2]).scale(width*4).center([12, 49]);
             path = d3.geoPath().projection(projection);
 
             // add regions
@@ -79,17 +99,15 @@ function initChoroplethMap() {
                 .style("stroke", "black")
                 .style("stroke-width", 0.5)
                 .style('fill', function (d) {
-                    return getColor(d);
-                }).on("mouseover", function (d) {
-            }).on("mouseout", function (d) {
-            }).on("click", function (d) {
+                    return getColor(d, 'normal');
+                }).on("click", function (d) {
                 cartodb_id = d.properties.cartodb_id;
                 if (selectedCartodbIds.includes(cartodb_id)) {
                     var index = selectedCartodbIds.indexOf(cartodb_id);
                     if (index > -1) {
                         selectedCartodbIds.splice(index, 1);
                     }
-                    d3.select(this).style("fill", getColor(d));
+                    d3.select(this).style("fill", getColor(d, 'normal'));
                 } else {
                     selectedCartodbIds.push(cartodb_id);
                     d3.select(this).style("fill", selectionColor);
@@ -98,24 +116,98 @@ function initChoroplethMap() {
                 document.getElementById("selected").innerHTML = idsToLandkreis(selectedCartodbIds);
             });
             heatmapCreated = true;
+
         }
     });
+
+
+}
+
+
+function initChoroplethMapInverse() {
+
+    console.log("Add inverse");
+    width = document.getElementById('mapWindow').clientWidth;
+    mapWidth = width / 2 - 1;
+    mapHeight = width * 3 / 4;
+
+
+    inverseSvg = d3.select("#inverseMap").select("svg")
+        .attr("width", mapWidth)
+        .attr("height", mapHeight);
+
+    inverseMapBackground = inverseSvg.append('rect')
+        .attr('width', mapWidth)
+        .attr('height', mapHeight)
+        .attr('fill', 'blue');
+
+    $.ajax({
+        type: 'GET',
+        url: '/regions',
+        contentType: "application/json",
+
+        data: "Landkreise",
+        success: function (data) {
+
+            geoJson = data;
+
+            inverseSvg = d3.select("#inverseMap").select("svg")
+                .attr("width", mapWidth)
+                .attr("height", mapHeight);
+
+
+            inverseMapLayer = inverseSvg.append('g')
+                .classed('inverseMap-layer', true);
+
+            inverseProjection = d3.geoMercator().translate([mapWidth / 2, mapHeight / 2]).scale(mapWidth * 4).center([12, 50]);
+
+            inversePath = d3.geoPath().projection(inverseProjection);
+
+            // add regions
+            inverseMapLayer.selectAll("path")
+                .data(geoJson.features)
+                .enter()
+                .append("path")
+                .attr("d", path)
+                .style("stroke", "black")
+                .style("stroke-width", 0.5)
+                .style('fill', function (d) {
+                    return getColor(d, 'inverse');
+                }).on("click", function (d) {
+                cartodb_id = d.properties.cartodb_id;
+                if (selectedCartodbIds.includes(cartodb_id)) {
+                    var index = selectedCartodbIds.indexOf(cartodb_id);
+                    if (index > -1) {
+                        selectedCartodbIds.splice(index, 1);
+                    }
+                    d3.select(this).style("fill", getColor(d, 'inverse'));
+                } else {
+                    selectedCartodbIds.push(cartodb_id);
+                    d3.select(this).style("fill", selectionColor);
+                }
+                updatePlot();
+                document.getElementById("selected").innerHTML = idsToLandkreis(selectedCartodbIds);
+            });
+
+        }
+    });
+
+
 }
 
 
 // get the color depending on the stored heatmap_data data
-function getColor(d) {
+function getColor(d, mode) {
     cartodb_id = d.properties.cartodb_id;
-    colorIntensity = heatmapData[cartodb_id];
-    color = d3.interpolateYlGn(colorIntensity);
-    console.log(colorIntensity, cartodb_id);
+    colorIntensity = heatmapData[mode][cartodb_id];
+    color = d3.interpolatePiYG(colorIntensity);
 
-    if (colorIntensity != undefined) {
+    if (colorIntensity != undefined && color!= undefined) {
         return color;
     } else {
         // for this filter are no ATMs in this region
-        console.log(heatmapData[cartodb_id]);
-        return d3.interpolateYlGn(0);
+        console.log("Error, region has no atms!");
+        return d3.interpolatePiYG(0);
     }
     /*
     var color_index = Math.round(heatmapData[cartodb_id] * colors_sequential.length) - 1;
@@ -129,7 +221,7 @@ function getColor(d) {
     */
 }
 
-
+/*
 function updateChoroplethMap() {
     mapLayer.selectAll("path").style('fill', function (d) {
         // if the region is currently selected, highlight it
@@ -140,6 +232,7 @@ function updateChoroplethMap() {
         }
     })
 }
+ */
 
 
 function updateHeatmapData() {
@@ -150,13 +243,13 @@ function updateHeatmapData() {
         data: JSON.stringify(get_filter_json()),
         success: function (data) {
             heatmapData = data;
-            if (!heatmapCreated) {
-                initChoroplethMap();
-                updatePlot();
-            } else {
-                updateChoroplethMap();
-                updatePlot();
+
+            initChoroplethMap();
+            if (document.getElementById('invert').checked) {
+                initChoroplethMapInverse();
             }
+            updatePlot();
+
         }
     });
 }
@@ -205,12 +298,27 @@ document.getElementById("apply_filter").onclick = function () {
 d3.select(window).on('resize', resize);
 
 function resize() {
-    width = document.getElementById('map').clientWidth;
-    height = width*1.5;
-   projection.translate([width/2, height/2]).scale(width*4).center([12, 49]);
-   d3.select('svg').attr("width",width).attr("height",height);
-   d3.select('te').attr("width",width).attr("height",height);
-   d3.selectAll("path").attr('d', path);
+
+    if (document.getElementById('invert').checked) {
+        width = document.getElementById('mapWindow').clientWidth;
+        mapWidth = width / 2 - 1;
+        mapHeight = width * 3 / 4;
+    } else {
+        height = document.getElementById('mapWindow').clientWidth;
+        mapHeight = height;
+        mapWidth = height * 3 / 4;
+    }
+
+
+    d3.select("#map").select('svg').attr("width", mapWidth).attr("height", mapHeight);
+    d3.select("#inverseMap").select('svg').attr("width", mapWidth).attr("height", mapHeight);
+    d3.select("#map").select('svg').select('rect').attr("width", mapWidth).attr("height", mapHeight);
+    d3.select("#inverseMap").select('svg').select('rect').attr("width", mapWidth).attr("height", mapHeight);
+
+    projection.translate([mapWidth / 2, mapHeight / 2]).scale(mapWidth * 4).center([12, 50]);
+    inverseProjection.translate([mapWidth / 2, mapHeight / 2]).scale(mapWidth * 4).center([12, 50]);
+
+    d3.selectAll("path").attr('d', path);
 
 
 }

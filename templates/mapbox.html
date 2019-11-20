@@ -27,12 +27,15 @@
 <body>
 
 
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-6" id="map">
-            <svg></svg>
+<div class="container my-container">
+
+    <div class="row my-row justify-content-center">
+
+        <div class="col-8 my-col">
+            <div id="mapWindow"></div>
         </div>
-        <div class="col-6" , id="con">
+
+        <div class="col-auto my-col">
 
             <h2>Filter</h2>
             Operator:
@@ -183,15 +186,18 @@
                 <button type="submit" class="btn btn-primary" id="apply_filter">Apply</button>
             </div>
 
-            <h4>You have selected: </h4>
-            <div id="selected"></div>
-
-            <div id="vis"></div>
-
-            <div id="vis_matrix"></div>
-
 
         </div>
+    </div>
+    <div class="row my-row justify-content-center">
+        <h4>You have selected: </h4>
+        <div id="selected"></div>
+
+        <div id="vis"></div>
+
+        <div id="vis_matrix"></div>
+
+
     </div>
 </div>
 

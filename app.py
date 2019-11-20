@@ -26,11 +26,10 @@ def tuple_list_to_geojson(list_of_tuples):
                 'operator': operator,
                 'landkreis_id': landkreis_id,
                 'wheelchair': wheelchair,
-                'c':1
+                'c': 1
             }
         })
     return {"type": "FeatureCollection", 'features': list_of_features}
-
 
 
 def query_database(filter_dict):
@@ -89,7 +88,6 @@ def query_database(filter_dict):
     return tuple_list_to_geojson(response_filtered)
 
 
-
 @app.route('/')
 def home():
     return render_template('mapbox.html')  # render a template
@@ -110,20 +108,47 @@ def data_request():
     plot_data = []
     for entry in response['features']:
         if entry['properties']['operator']:
-            if entry['properties']['operator'].lower() not in post_request['filter']['operator']['include'] + post_request['filter']['operator']['exclude']:
+            if entry['properties']['operator'].lower() not in post_request['filter']['operator']['include'] + \
+                    post_request['filter']['operator']['exclude']:
                 entry['properties']['operator'] = 'others'
         else:
             entry['properties']['operator'] = 'others'
         if entry['properties']['landkreis_id'] in regions or len(regions) == 0:
             entry['properties']['landkreis'] = entry['properties']['landkreis_id']
             plot_data.append(entry['properties'])
-    return {'data':plot_data}
+    return {'data': plot_data}
 
 
 @app.route('/normalized_atm_count_per_region', methods=['POST'])
 def normalized_atm_count_per_region():
-    atms_in_region = {}
     post_request = request.json
+    normal = normalized_atm_count_per_region(post_request)
+    print(post_request['filter'])
+
+    for age in post_request['filter']['population'].keys():
+        post_request['filter']['population'][age] = not post_request['filter']['population'][age]
+
+    inverse = normalized_atm_count_per_region(post_request)
+
+    # normalize
+    normal_values = [normal[key] for key in normal.keys()]
+    inverse_values = [inverse[key] for key in inverse.keys()]
+
+
+    max_value_to_tormalize_with = max([max(normal_values), max(inverse_values)])
+
+    for key in normal.keys():
+        normal[key] = normal[key] / max_value_to_tormalize_with
+
+    for key in inverse.keys():
+        inverse[key] = inverse[key] / max_value_to_tormalize_with
+
+    return {'normal': normal, 'inverse': inverse}
+
+
+def normalized_atm_count_per_region(post_request):
+    atms_in_region = {}
+
     geojson = query_database(post_request['filter'])
     with open('data/region_population_age.json') as population_file:
         population_json = json.load(population_file)
@@ -143,33 +168,16 @@ def normalized_atm_count_per_region():
                     except:
                         print(str(region))
 
-            atms_in_region[region] = atms_in_region[region]/people_to_consider
+            atms_in_region[region] = atms_in_region[region] / people_to_consider
 
     values = [atms_in_region[key] for key in atms_in_region.keys()]
-    try:
-        sum_values = sum(values)
-    except ValueError:
-        return {}
-    # normalize to range 0 to 1
-    max_values = 0
-    for key in atms_in_region.keys():
-        atms_in_region[key] = atms_in_region[key]/sum_values
-        if atms_in_region[key] > max_values:
-            max_values = atms_in_region[key]
-    for key in atms_in_region.keys():
-        atms_in_region[key] = atms_in_region[key] / 0.015
+    # try:
+    #    sum_values = sum(values)
+    # except ValueError:
+    #    return {}
 
-    print("max:")
-    print(max_values)
-
-
-    print(atms_in_region)
-
-    s = 0
-    for region in atms_in_region.keys():
-        s += atms_in_region[region]
-    print("Sum:")
-    print(s)
+    # print('max value:')
+    # print(max(values))
 
     return atms_in_region
 
@@ -178,7 +186,6 @@ def idsToLandkreis(cartodb_id):
     with open('data/cartodb_id_to_landkreis.json', encoding='utf-8') as j:
         d = json.load(j)
         return str(cartodb_id) + " " + d[str(cartodb_id)]
-
 
 
 # start the server with the 'run()' method

@@ -1,9 +1,12 @@
 import json
 import sqlite3
+import numpy as np
 
 from flask import Flask, render_template, request, jsonify
 
 # create the application object
+from scipy.stats import stats
+
 app = Flask(__name__)
 
 
@@ -118,22 +121,15 @@ def data_request():
             plot_data.append(entry['properties'])
     return {'data': plot_data}
 
+def normalize(normal, inverse):
+    normal_values = []
+    keys_ordered = []
 
-@app.route('/normalized_atm_count_per_region', methods=['POST'])
-def normalized_atm_count_per_region():
-    post_request = request.json
-    normal = normalized_atm_count_per_region(post_request)
-    print(post_request['filter'])
+    for key in normal.keys():
+        normal_values.append(normal[key])
+        keys_ordered.append(key)
 
-    for age in post_request['filter']['population'].keys():
-        post_request['filter']['population'][age] = not post_request['filter']['population'][age]
-
-    inverse = normalized_atm_count_per_region(post_request)
-
-    # normalize
-    normal_values = [normal[key] for key in normal.keys()]
     inverse_values = [inverse[key] for key in inverse.keys()]
-
 
     max_value_to_tormalize_with = max([max(normal_values), max(inverse_values)])
 
@@ -142,8 +138,80 @@ def normalized_atm_count_per_region():
 
     for key in inverse.keys():
         inverse[key] = inverse[key] / max_value_to_tormalize_with
+    return normal, inverse
 
-    return {'normal': normal, 'inverse': inverse}
+
+@app.route('/normalized_atm_count_per_region', methods=['POST'])
+def normalized_atm_count_per_region():
+    post_request = request.json
+    normal = normalized_atm_count_per_region(post_request)
+    print(normal)
+    for age in post_request['filter']['population'].keys():
+        post_request['filter']['population'][age] = not post_request['filter']['population'][age]
+    inverse = normalized_atm_count_per_region(post_request)
+    print(inverse)
+
+    normal_values = []
+    keys_ordered = []
+    for key in normal.keys():
+        normal_values.append(normal[key])
+        keys_ordered.append(key)
+
+    inverse_values = [inverse[key] for key in inverse.keys()]
+
+    normal_unnor = normal_values.copy()
+    inverse_unnor = inverse_values.copy()
+    # normalize
+    normal, inverse = normalize(normal, inverse)
+
+    normal_values = []
+    keys_ordered = []
+
+    for key in normal.keys():
+        normal_values.append(normal[key])
+        keys_ordered.append(key)
+
+    inverse_values = [inverse[key] for key in inverse.keys()]
+
+
+
+    outlier_regions = []
+    if post_request['filter']['outliers']:
+
+
+        z = np.abs(stats.zscore(normal_values))
+
+        outliers = np.where(z > 3)
+
+        for outlier in outliers[0]:
+            outlier_regions.append(keys_ordered[outlier])
+
+        z = np.abs(stats.zscore(inverse_values))
+
+        outliers = np.where(z > 3)
+
+        for outlier in outliers[0]:
+            if not keys_ordered[outlier] in outlier_regions:
+                outlier_regions.append(keys_ordered[outlier])
+
+        for outlier in outlier_regions:
+            del normal[outlier]
+            del inverse[outlier]
+
+
+
+        normal, inverse = normalize(normal, inverse)
+
+    max_color_value = 0
+    for value in normal_unnor:
+        if value > max_color_value:
+            max_color_value = value
+    for value in inverse_unnor:
+        if value > max_color_value:
+            max_color_value = value
+    print("max for color scale:", 1/max_color_value)
+    print(max_color_value)
+    return {'normal': normal, 'inverse': inverse, 'outlier_regions': outlier_regions, 'max_color_value': max_color_value}
 
 
 def normalized_atm_count_per_region(post_request):
@@ -168,16 +236,10 @@ def normalized_atm_count_per_region(post_request):
                     except:
                         print(str(region))
 
-            atms_in_region[region] = atms_in_region[region] / people_to_consider
+            atms_in_region[region] = atms_in_region[region] / (people_to_consider/100)
 
     values = [atms_in_region[key] for key in atms_in_region.keys()]
-    # try:
-    #    sum_values = sum(values)
-    # except ValueError:
-    #    return {}
 
-    # print('max value:')
-    # print(max(values))
 
     return atms_in_region
 

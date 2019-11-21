@@ -7,8 +7,9 @@ document.getElementById('check_operator_sparkasse').checked = true;
 document.getElementById('check_operator_volksbank').checked = true;
 document.getElementById('check_age_4').checked = true;
 document.getElementById('check_age_5').checked = true;
-document.getElementById('invert').checked = true;
 
+document.getElementById('invert').checked = true;
+document.getElementById('outliers').checked = true;
 
 var selectedCartodbIds = [];
 
@@ -86,6 +87,7 @@ function initChoroplethMap() {
             mapLayer = svg.append('g')
                 .classed('map-layer', true);
 
+
             projection = d3.geoMercator().translate([mapWidth / 2, mapHeight / 2]).scale(mapWidth * 4).center([12, 50]);
 
             path = d3.geoPath().projection(projection);
@@ -115,6 +117,9 @@ function initChoroplethMap() {
                 updatePlot();
                 document.getElementById("selected").innerHTML = idsToLandkreis(selectedCartodbIds);
             });
+
+            document.getElementById("colorscale").innerHTML = "Colorscale: 0 <img src=\"static/img/colorscale.png\" alt=\"colorscale\" width=\"300\" height=\"10\"> "+ (heatmapData['max_color_value']*1000).toFixed(3) + "e-3 ATMs/person ";
+
             heatmapCreated = true;
 
         }
@@ -200,14 +205,20 @@ function initChoroplethMapInverse() {
 function getColor(d, mode) {
     cartodb_id = d.properties.cartodb_id;
     colorIntensity = heatmapData[mode][cartodb_id];
-    color = d3.interpolatePiYG(colorIntensity);
+    color = d3.interpolateBlues(colorIntensity);
+
+    
+
 
     if (colorIntensity != undefined && color!= undefined) {
         return color;
     } else {
         // for this filter are no ATMs in this region
         console.log("Error, region has no atms!");
-        return d3.interpolatePiYG(0);
+        if (document.getElementById('outliers').checked){
+            return 'red';
+        }
+        return d3.interpolateBlues(0);
     }
     /*
     var color_index = Math.round(heatmapData[cartodb_id] * colors_sequential.length) - 1;

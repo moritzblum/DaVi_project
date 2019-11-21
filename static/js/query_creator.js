@@ -17,7 +17,9 @@ function get_filter_json() {
                 '25-44': false,
                 '45-64': false,
                 '65-100': false
-            }
+            },
+            'outliers': false,
+            'invert': false
         }
     };
 
@@ -46,6 +48,9 @@ function get_filter_json() {
     query_json.filter.population['25-44'] = document.getElementById('check_age_3').checked;
     query_json.filter.population['45-64'] = document.getElementById('check_age_4').checked;
     query_json.filter.population['65-100'] = document.getElementById('check_age_5').checked;
+
+    query_json.filter.outliers = document.getElementById('outliers').checked;
+    query_json.filter.invert = document.getElementById('invert').checked;
 
 
     return query_json;
